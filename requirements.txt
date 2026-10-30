@@ -1,6 +1,10 @@
 fastapi==0.141.1
 uvicorn==0.52.3
 SQLAlchemy==2.0.52
-psycopg2-binary
 pydantic==2.13.4
 pyjwt
+psycopg2-binary
+tzdata
+reportlab
+pyhanko
+python-dotenv

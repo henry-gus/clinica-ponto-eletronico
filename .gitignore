@@ -1,16 +1,21 @@
-# Ambientes Virtuais
+# Ambientes virtuais
 .venv/
 venv/
 env/
 
-# Arquivos temporários do Python
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
 
-# Opcional: Arquivos de banco de dados locais (se houver)
+# Bancos locais
 *.db
 *.sqlite3
 
-# Arquivos do sistema operacional
+# Segredos e certificados (NUNCA commitar)
+.env
+certs/
+
+# Sistema operacional
 .DS_Store
 Thumbs.db
