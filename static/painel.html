@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel - Ponto</title>
+  <link rel="stylesheet" href="/static/css/estilo.css">
+</head>
+<body class="pagina-larga">
+  <main class="cartao largo">
+    <h1>Painel do administrador</h1>
+
+    <section id="tela-login">
+      <form id="form-login">
+        <label for="token">Token de administrador</label>
+        <input id="token" type="password" required autocomplete="off">
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section id="tela-painel" hidden>
+      <div class="barra">
+        <span>Extratos de ponto</span>
+        <button type="button" id="sair" class="secundario">Sair</button>
+      </div>
+      <form id="form-periodo" class="filtro">
+        <label>De <input type="date" id="inicio" required></label>
+        <label>Até <input type="date" id="fim" required></label>
+        <button type="submit">Filtrar</button>
+        <button type="button" id="baixar-zip" class="secundario">Baixar todos (ZIP)</button>
+      </form>
+
+      <h2>Resumo do período</h2>
+      <div class="tabela-rolagem">
+        <table class="extrato" id="tabela-resumo">
+          <thead>
+            <tr><th>Funcionário</th><th>Cargo</th><th>Dias</th><th>Total</th><th>Saldo</th><th>Incompletos</th><th></th></tr>
+          </thead>
+          <tbody id="corpo-resumo"></tbody>
+        </table>
+      </div>
+      <p id="vazio" hidden>Nenhum funcionário cadastrado.</p>
+
+      <div id="detalhe-bloco" hidden>
+        <hr>
+        <div id="detalhe"></div>
+        <button type="button" id="baixar-detalhe" class="secundario">Baixar PDF deste funcionário</button>
+      </div>
+    </section>
+
+    <p id="mensagem" role="status"></p>
+  </main>
+
+  <script src="/static/js/extrato-ui.js"></script>
+  <script src="/static/js/painel.js"></script>
+</body>
+</html>

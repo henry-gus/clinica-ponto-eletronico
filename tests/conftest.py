@@ -13,8 +13,10 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+from app import config, limitador  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from scripts.gerar_certificado_teste import gerar  # noqa: E402
 
 ADMIN = {"X-Admin-Token": "admin-teste"}
 
@@ -55,3 +57,17 @@ def usuario(client):
     )
     assert resposta.status_code == 200
     return resposta.json()
+
+
+@pytest.fixture(autouse=True)
+def zerar_limitador():
+    """O limite de tentativas fica na memória do processo: começa limpo em cada teste."""
+    limitador.resetar_tudo()
+
+
+@pytest.fixture
+def certificado(tmp_path, monkeypatch):
+    caminho = tmp_path / "teste.p12"
+    gerar(str(caminho), "senha-teste")
+    monkeypatch.setattr(config, "CERT_P12_PATH", str(caminho))
+    monkeypatch.setattr(config, "CERT_P12_SENHA", "senha-teste")
