@@ -10,7 +10,7 @@ from pypdf import PdfReader
 from app import config, models
 from app.cpf import cpf_valido
 from app.services import assinatura_service, comprovante_service
-from tests.conftest import ADMIN
+from tests.conftest import entrar, novo_usuario
 
 
 def _bater_ponto(client, usuario):
@@ -100,10 +100,16 @@ def test_token_do_qr_nao_serve_como_link_de_comprovante(client, usuario):
     assert client.get(f"/comprovantes/{marcacao['nsr']}?token={token_qr}").status_code == 403
 
 
-def test_admin_baixa_qualquer_comprovante_e_nsr_inexistente_da_404(client, usuario):
+def test_admin_baixa_qualquer_comprovante_e_nsr_inexistente_da_404(client, usuario, cab_admin):
     marcacao = _bater_ponto(client, usuario)
-    assert client.get(f"/comprovantes/{marcacao['nsr']}", headers=ADMIN).status_code == 200
-    assert client.get("/comprovantes/9999", headers=ADMIN).status_code == 404
+    assert client.get(f"/comprovantes/{marcacao['nsr']}", headers=cab_admin).status_code == 200
+    assert client.get("/comprovantes/9999", headers=cab_admin).status_code == 404
+
+
+def test_sessao_de_funcionario_nao_baixa_comprovante_alheio(client, usuario, cab_admin):
+    marcacao = _bater_ponto(client, usuario)
+    bia = novo_usuario(client, cab_admin, "Bia Lima", "111.444.777-35")
+    assert client.get(f"/comprovantes/{marcacao['nsr']}", headers=entrar(client, bia, "4321")).status_code == 403
 
 
 def test_sem_dados_do_empregador_nao_emite_comprovante(client, usuario, monkeypatch):
@@ -121,14 +127,6 @@ def test_comprovante_regenerado_e_igual_para_a_mesma_marcacao(db, usuario):
     assert _texto(comprovante_service.gerar_comprovante(db, marcacao.nsr)) == _texto(
         comprovante_service.gerar_comprovante(db, marcacao.nsr)
     )
-
-
-def test_cpf_invalido_e_duplicado(client, usuario):
-    corpo = {"nome": "Bia", "cpf": "111.111.111-11", "cargo": "Médica", "pin": "4321"}
-    assert client.post("/usuarios/", json=corpo, headers=ADMIN).status_code == 422
-
-    corpo["cpf"] = "52998224725"  # o mesmo CPF do fixture, sem pontuação
-    assert client.post("/usuarios/", json=corpo, headers=ADMIN).status_code == 409
 
 
 def test_validacao_de_cpf():

@@ -1,29 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
 
-from app import models, schemas, security
+from app import models, schemas
 from app.database import DbSession
+from app.dependencias import exigir_admin
+from app.services import usuario_service
 
-router = APIRouter(prefix="/usuarios", tags=["usuários"], dependencies=[Depends(security.exigir_admin)])
+router = APIRouter(prefix="/usuarios", tags=["usuários"], dependencies=[Depends(exigir_admin)])
 
 
 @router.post("/", response_model=schemas.UsuarioResponse)
 def criar_usuario(dados: schemas.UsuarioCreate, db: DbSession):
-    usuario = models.Usuario(
-        nome=dados.nome,
-        cpf=dados.cpf,
-        cargo=dados.cargo,
-        carga_horaria_diaria=dados.carga_horaria_diaria,
-        pin_hash=security.hash_pin(dados.pin),
-    )
-    db.add(usuario)
     try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
+        return usuario_service.criar_usuario(db, dados)
+    except usuario_service.CpfDuplicado:
         raise HTTPException(409, "Já existe um funcionário com este CPF.")
-    db.refresh(usuario)
-    return usuario
 
 
 @router.get("/", response_model=list[schemas.UsuarioResponse])

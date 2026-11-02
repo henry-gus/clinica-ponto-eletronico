@@ -9,11 +9,26 @@ desenvolvimento), containerizada com Docker. Registra o ponto por QR Code dinâm
 1. A recepção abre `/recepcao`, que mostra um QR Code renovado a cada 60 segundos.
 2. O funcionário escaneia, abre `/bater-ponto`, informa ID e PIN e registra a marcação.
 3. A resposta traz um link para o comprovante em PDF dessa marcação (válido por 72h).
-4. A qualquer momento, o funcionário abre `/meu-extrato`, entra com ID e PIN, filtra o período e vê (ou
-   baixa em PDF) todas as suas marcações, como numa folha de ponto.
-5. O administrador abre `/painel` (com o `ADMIN_TOKEN`), vê o resumo de todos os funcionários no período,
-   abre o extrato de cada um na tela e baixa os PDFs (um a um ou todos num ZIP).
-6. O cadastro de funcionários e as demais consultas continuam pela API (header `X-Admin-Token`).
+4. Em `/extratos`, qualquer pessoa entra com ID e PIN. O servidor diz o **perfil** (funcionário ou
+   administrador) e a tela mostra só o que aquele perfil pode usar:
+   - **Funcionário:** aba *Extratos* com as próprias marcações no período escolhido, em tela ou PDF.
+   - **Administrador:** aba *Extratos* com o resumo de todos, o extrato de cada pessoa na tela, PDF por
+     pessoa, ZIP com todos e o registro de **atestado, falta justificada e férias**; e aba *Funcionários*,
+     para cadastrar e listar pessoas.
+
+## Primeiro administrador
+
+O administrador é uma pessoa cadastrada com perfil `admin`; entra como todos, com ID e PIN. Como ainda não
+há ninguém para cadastrá-lo, o primeiro nasce pelo terminal:
+
+```bash
+python -m scripts.criar_admin                  # cria um novo (pergunta nome, CPF, cargo e PIN)
+python -m scripts.criar_admin --promover 3     # ou promove quem já está cadastrado (ID 3)
+docker compose exec api python -m scripts.criar_admin    # com Docker
+```
+
+Depois disso, novos administradores podem ser cadastrados pela aba *Funcionários*. O perfil é lido do banco
+a cada requisição: promover ou rebaixar vale na hora.
 
 ### Decisões de projeto
 
@@ -22,12 +37,21 @@ desenvolvimento), containerizada com Docker. Registra o ponto por QR Code dinâm
   (120s por padrão) ainda funciona. Por isso o funcionário também precisa do PIN.
 - **Marcações imutáveis com NSR.** A tabela `marcacoes` só recebe inserções. Entrada ou saída é
   deduzida pela ordem das marcações no dia (fuso da clínica); uma saída esquecida não afeta o dia seguinte.
-- **Limite de tentativas de PIN.** Depois de 5 erros (padrão), o funcionário fica bloqueado por 15 min,
-  inclusive para o PIN correto. O contador vale para bater ponto e para o extrato. Fica na memória do
+- **Limite de tentativas de PIN.** Depois de 5 erros (padrão), a pessoa fica bloqueada por 15 min,
+  inclusive para o PIN correto. O contador vale para bater ponto e para o login. Fica na memória do
   servidor: reiniciar zera, e quem errar de propósito pode travar o acesso de um colega por alguns minutos.
-- **Extrato por período.** Lista todos os dias do período (inclusive os sem marcação), pareia as marcações do
-  dia (1ª-2ª, 3ª-4ª...) e soma as horas. Marcação sem par aparece como "incompleta" e não soma horas. O saldo é
-  o total trabalhado menos (dias com ao menos um par completo x jornada diária).
+- **Extrato por período.** Lista todos os dias do período (inclusive os sem marcação) e pareia as marcações
+  do dia (1ª-2ª, 3ª-4ª...). Regras do saldo:
+  - horas trabalhadas = soma dos pares entrada-saída (marcação sem par fica registrada, mas não soma);
+  - horas esperadas = jornada x dias de trabalho já encerrados, **menos** os dias com atestado, férias ou
+    falta justificada (abonados);
+  - dia de trabalho passado, sem marcação e sem ausência = **falta**, que entra no esperado e pesa no saldo;
+  - hoje só entra no esperado depois de um par completo; dias futuros nunca entram;
+  - cada pessoa tem seus **dias de trabalho** (padrão segunda a sexta) e a data **a partir da qual o ponto é
+    cobrado** (o padrão da tela é hoje), para que quem entrou no meio do mês não receba faltas retroativas.
+    Trabalho em dia fora da escala conta como hora a mais.
+  - **Feriados ainda não são tratados:** um feriado em dia útil aparece como falta. Enquanto isso, registre
+    "falta justificada" com a observação "Feriado".
 - **Comprovante gerado sob demanda** a partir da marcação, do cadastro e dos dados do empregador.
   Contém os campos do art. 79 da Portaria 671 (título, NSR, empregador, local, trabalhador com CPF,
   data, hora e fuso) e, havendo certificado, é assinado em PAdES.
@@ -35,12 +59,14 @@ desenvolvimento), containerizada com Docker. Registra o ponto por QR Code dinâm
 ## Rodando com Docker (PostgreSQL)
 
 ```bash
-cp .env.example .env     # edite SECRET_KEY, ADMIN_TOKEN, POSTGRES_PASSWORD e os dados da empresa
+cp .env.example .env     # edite SECRET_KEY, POSTGRES_PASSWORD e os dados da empresa
 python -m scripts.gerar_certificado_teste   # opcional: certificado de TESTE para assinar o PDF
 docker compose up -d --build
 ```
 
-Se você já tinha subido a versão anterior, apague o volume antigo (o esquema do banco mudou):
+Ao atualizar de uma versão anterior, o servidor acrescenta sozinho as colunas novas (perfil, dias de trabalho e
+data de início) e cria a tabela de ausências, **sem apagar dados**. Só falta definir o administrador (veja
+"Primeiro administrador"). Se a versão antiga tinha tabelas de uma estrutura muito anterior, apague o volume:
 `docker compose down -v`.
 
 - API e documentação: `http://localhost:8000/docs`
@@ -58,24 +84,39 @@ cp .env.example .env
 uvicorn app.main:app --reload --env-file .env --host 0.0.0.0
 ```
 
-## Uso da API (administrador)
+## Uso da API
+
+Tudo o que a tela faz está na API (documentação interativa em `/docs`, com o botão **Authorize**).
 
 ```bash
-curl -X POST http://localhost:8000/usuarios/ \
-  -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json" \
-  -d '{"nome": "Ana Souza", "cpf": "529.982.247-25", "cargo": "Recepcionista",
-       "carga_horaria_diaria": 8, "pin": "1234"}'
+# 1. login -> token (o campo "papel" diz se é funcionario ou admin)
+curl -X POST http://localhost:8000/auth/login -H "Content-Type: application/json" \
+  -d '{"usuario_id": 1, "pin": "1234"}'
 
-curl "http://localhost:8000/relatorio/1?mes=10&ano=2026" -H "X-Admin-Token: $ADMIN_TOKEN"
-
-# extratos (datas inclusivas; sem parâmetros = do dia 1º do mês até hoje)
-curl "http://localhost:8000/admin/resumo?inicio=2026-10-01&fim=2026-10-31" -H "X-Admin-Token: $ADMIN_TOKEN"
-curl "http://localhost:8000/admin/extrato/1/pdf?inicio=2026-10-01&fim=2026-10-31" -H "X-Admin-Token: $ADMIN_TOKEN" -o extrato.pdf
-curl "http://localhost:8000/admin/extratos/zip?inicio=2026-10-01&fim=2026-10-31" -H "X-Admin-Token: $ADMIN_TOKEN" -o extratos.zip
-
-# comprovante de qualquer marcação (o trabalhador usa o link devolvido ao bater o ponto)
-curl http://localhost:8000/comprovantes/1 -H "X-Admin-Token: $ADMIN_TOKEN" -o comprovante.pdf
+# 2. use o token nas demais chamadas
+curl "http://localhost:8000/extratos/meu?inicio=2026-10-01&fim=2026-10-31" -H "Authorization: Bearer $TOKEN"
+curl "http://localhost:8000/extratos/meu/pdf?inicio=2026-10-01&fim=2026-10-31" -H "Authorization: Bearer $TOKEN" -o extrato.pdf
 ```
+
+Só administradores (as demais rotas respondem 403 para funcionários):
+
+```bash
+curl -X POST http://localhost:8000/usuarios/ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"nome": "Ana Souza", "cpf": "529.982.247-25", "cargo": "Recepcionista", "pin": "1234",
+       "dias_trabalho": [0, 1, 2, 3, 4], "data_inicio": "2026-10-01", "papel": "funcionario"}'
+
+curl "http://localhost:8000/admin/resumo?inicio=2026-10-01&fim=2026-10-31" -H "Authorization: Bearer $TOKEN"
+curl "http://localhost:8000/admin/extrato/2/pdf?inicio=2026-10-01&fim=2026-10-31" -H "Authorization: Bearer $TOKEN" -o extrato.pdf
+curl "http://localhost:8000/admin/extratos/zip?inicio=2026-10-01&fim=2026-10-31" -H "Authorization: Bearer $TOKEN" -o extratos.zip
+
+# atestado, falta_justificada ou ferias (um registro por dia, de inicio a fim)
+curl -X POST http://localhost:8000/admin/ausencias -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"usuario_id": 2, "tipo": "atestado", "inicio": "2026-10-08", "fim": "2026-10-09", "observacao": "consulta"}'
+curl -X DELETE http://localhost:8000/admin/ausencias/7 -H "Authorization: Bearer $TOKEN"
+```
+
+Datas sem parâmetros = do dia 1º do mês até hoje. O comprovante de uma marcação também pode ser baixado por um
+administrador logado: `GET /comprovantes/{nsr}`.
 
 ## Assinatura do comprovante
 
@@ -91,13 +132,14 @@ Técnico e Termo de Responsabilidade, que não são questões de código.
 
 ```
 app/
-  main.py, config.py, database.py, models.py, schemas.py, security.py, cpf.py
-  limitador.py, dependencias.py
-  routers/    usuarios, ponto, comprovantes, funcionario, admin, relatorios, paginas
-  services/   ponto_service, relatorio_service, autenticacao_service, extrato_service,
-              extrato_pdf_service, comprovante_service, assinatura_service
-static/       recepcao, bater-ponto, meu-extrato, painel (HTML + css/js)
-scripts/      gerar_certificado_teste.py
+  main.py, config.py, database.py, migracoes.py, models.py, schemas.py, security.py, cpf.py
+  limitador.py, dependencias.py (login, perfis, período)
+  routers/    auth, extratos, admin, usuarios, ponto, comprovantes, paginas
+  services/   ponto_service, relatorio_service, autenticacao_service, usuario_service,
+              ausencia_service, extrato_service, extrato_pdf_service, comprovante_service,
+              assinatura_service
+static/       recepcao, bater-ponto, extratos (HTML + css/js)
+scripts/      criar_admin.py, gerar_certificado_teste.py
 tests/
 ```
 
@@ -109,11 +151,13 @@ pytest
 
 ## Segurança em uso real
 
-O `/painel` pede o `ADMIN_TOKEN`, que trafega em HTTP puro dentro da rede da clínica. Para uso real, prefira
-abrir o painel só no computador da clínica e colocar HTTPS (proxy reverso) na frente do sistema.
+O ID e o PIN do administrador trafegam em HTTP puro dentro da rede da clínica. Para uso real, prefira usar a
+conta de administrador só no computador da clínica e colocar HTTPS (proxy reverso) na frente do sistema.
+O PIN tem só 4 a 6 dígitos: o bloqueio por tentativas é o que o protege, e ele pode ser provocado de propósito
+contra uma conta (o administrador inclusive) por alguns minutos.
 
 ## Próximos passos
 
 - Exportação do AFD (Arquivo Fonte de Dados)
 - Correção de marcações pelo administrador (ajustes sem alterar a marcação original)
-- Cadastro de funcionários pelo painel
+- Feriados e troca de PIN pelo administrador

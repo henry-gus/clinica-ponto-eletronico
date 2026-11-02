@@ -1,6 +1,6 @@
-from datetime import timezone
+from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, event
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, event
 from sqlalchemy.types import TypeDecorator
 
 from app.database import Base
@@ -23,6 +23,14 @@ class UTCDateTime(TypeDecorator):
         return None if value is None else value.replace(tzinfo=timezone.utc)
 
 
+# Ausências que o administrador pode registrar para um dia (código -> texto exibido).
+TIPOS_AUSENCIA = {
+    "atestado": "Atestado",
+    "falta_justificada": "Falta justificada",
+    "ferias": "Férias",
+}
+
+
 class Usuario(Base):
     __tablename__ = "usuarios"
 
@@ -32,6 +40,19 @@ class Usuario(Base):
     cargo = Column(String, nullable=False)
     carga_horaria_diaria = Column(Float, default=8.0, nullable=False)
     pin_hash = Column(String, nullable=False)
+    papel = Column(String, nullable=False, default="funcionario", server_default="funcionario")
+    # Dias da semana em que a pessoa trabalha, como números separados por vírgula (0 = segunda ... 6 = domingo).
+    dias_trabalho = Column(String, nullable=False, default="0,1,2,3,4", server_default="0,1,2,3,4")
+    # A partir de quando o ponto é cobrado. Antes disso não há falta. Vazio = sem limite.
+    data_inicio = Column(Date, nullable=True)
+
+    @property
+    def eh_admin(self) -> bool:
+        return self.papel == "admin"
+
+    @property
+    def dias_trabalho_lista(self) -> list[int]:
+        return [int(dia) for dia in self.dias_trabalho.split(",") if dia != ""]
 
 
 class Marcacao(Base):
@@ -55,3 +76,18 @@ class Marcacao(Base):
 def _bloquear_alteracao(mapper, connection, target):
     # Proteção na camada da aplicação. Em produção, reforce no banco (trigger/permissões).
     raise RuntimeError("Marcações são imutáveis: não podem ser alteradas nem apagadas.")
+
+
+class Ausencia(Base):
+    """Um dia justificado (atestado, falta justificada ou férias), registrado pelo administrador."""
+
+    __tablename__ = "ausencias"
+    __table_args__ = (UniqueConstraint("usuario_id", "data", name="uq_ausencia_usuario_data"),)
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    data = Column(Date, nullable=False, index=True)
+    tipo = Column(String, nullable=False)
+    observacao = Column(String, nullable=True)
+    registrado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    criado_em = Column(UTCDateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

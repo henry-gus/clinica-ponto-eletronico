@@ -11,7 +11,6 @@ def _exigir(nome: str) -> str:
 
 
 SECRET_KEY = _exigir("SECRET_KEY")
-ADMIN_TOKEN = _exigir("ADMIN_TOKEN")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ponto.db")
 
@@ -38,10 +37,10 @@ COMPROVANTE_VALIDADE_HORAS = int(os.getenv("COMPROVANTE_VALIDADE_HORAS", "72"))
 CERT_P12_PATH = os.getenv("CERT_P12_PATH", "")
 CERT_P12_SENHA = os.getenv("CERT_P12_SENHA", "")
 
-# --- Acesso do funcionário ao extrato ---------------------------------------
-# Após informar ID e PIN, o funcionário recebe uma sessão curta.
-SESSAO_FUNCIONARIO_MINUTOS = int(os.getenv("SESSAO_FUNCIONARIO_MINUTOS", "15"))
+# --- Login (funcionários e administradores) --------------------------------
+# Após informar ID e PIN, a pessoa recebe uma sessão com esta duração.
+SESSAO_MINUTOS = int(os.getenv("SESSAO_MINUTOS", "30"))
 
-# Limite de erros de PIN por funcionário (vale para bater ponto e para o extrato).
+# Limite de erros de PIN por usuário (vale para bater ponto e para o login).
 PIN_MAX_TENTATIVAS = int(os.getenv("PIN_MAX_TENTATIVAS", "5"))
 PIN_BLOQUEIO_MINUTOS = int(os.getenv("PIN_BLOQUEIO_MINUTOS", "15"))

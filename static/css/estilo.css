@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
 body {
   margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
@@ -37,7 +38,7 @@ button.mini { margin-top: 0; padding: .3rem .7rem; font-size: .85rem; }
 table.extrato { width: 100%; border-collapse: collapse; font-size: .9rem; }
 table.extrato th, table.extrato td { border: 1px solid #d5dde6; padding: .35rem .5rem; text-align: left; white-space: nowrap; }
 table.extrato th { background: #eef2f6; }
-table.extrato tr.fds td { background: #f6f7f9; color: #6b7a89; }
+table.extrato tr.folga td { background: #f6f7f9; color: #6b7a89; }
 table.extrato tr.incompleto td { background: #fff4e5; }
 table.extrato td.acoes { display: flex; gap: .4rem; border: 0; }
 .sub { color: #5a6b7c; margin-top: 0; }
@@ -45,3 +46,17 @@ dl.totais { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; ma
 dl.totais dt { font-weight: 600; }
 dl.totais dd { margin: 0; }
 .cartao.largo #mensagem { text-align: center; }
+
+/* --- abas, situações e formulários do painel --- */
+.abas { display: flex; gap: .4rem; border-bottom: 2px solid #d5dde6; margin-bottom: 1rem; }
+button.aba { margin-top: 0; padding: .6rem 1.1rem; font-size: 1rem; background: transparent; color: #5a6b7c; border-radius: 8px 8px 0 0; }
+button.aba.ativa { background: #1d6fd8; color: #fff; }
+table.extrato tr.falta td { background: #fdecea; }
+table.extrato tr.ausencia td { background: #e8f1fb; }
+.caixa { border: 1px solid #d5dde6; border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+.caixa h3 { width: 100%; margin: 0 0 .2rem; }
+.filtro label.larga { flex: 1 1 220px; }
+.filtro select, .filtro input[type=text], .filtro input[type=number] { padding: .5rem; font-size: 1rem; }
+fieldset.dias { border: 0; padding: 0; margin: 0; display: flex; gap: .8rem; flex-wrap: wrap; align-items: center; }
+fieldset.dias legend { font-size: .85rem; padding: 0; }
+fieldset.dias label { flex-direction: row; align-items: center; gap: .3rem; }

@@ -4,7 +4,6 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Header, HTTPException
 
 from app import config
 
@@ -42,23 +41,23 @@ def validar_token_comprovante(token: str, nsr: int) -> bool:
     return payload.get("tipo") == "comprovante" and payload.get("nsr") == nsr
 
 
-# --- Sessão do funcionário (extrato) ---------------------------------------
+# --- Sessão (login com ID e PIN) ---------------------------------------------
 def criar_token_sessao(usuario_id: int) -> str:
-    expiracao = datetime.now(timezone.utc) + timedelta(minutes=config.SESSAO_FUNCIONARIO_MINUTOS)
+    expiracao = datetime.now(timezone.utc) + timedelta(minutes=config.SESSAO_MINUTOS)
     return jwt.encode(
-        {"tipo": "sessao_funcionario", "uid": usuario_id, "exp": expiracao},
+        {"tipo": "sessao", "uid": usuario_id, "exp": expiracao},
         config.SECRET_KEY,
         algorithm=ALGORITHM,
     )
 
 
 def validar_token_sessao(token: str) -> int | None:
-    """Devolve o id do funcionário se o token for uma sessão válida; senão None."""
+    """Devolve o id do usuário se o token for uma sessão válida; senão None."""
     try:
         payload = jwt.decode(token, config.SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.InvalidTokenError:
         return None
-    if payload.get("tipo") != "sessao_funcionario":
+    if payload.get("tipo") != "sessao":
         return None
     uid = payload.get("uid")
     return uid if isinstance(uid, int) else None
@@ -77,13 +76,3 @@ def hash_pin(pin: str) -> str:
 def verificar_pin(pin: str, armazenado: str) -> bool:
     salt_hex, hash_hex = armazenado.split(":")
     return hmac.compare_digest(_scrypt(pin, bytes.fromhex(salt_hex)).hex(), hash_hex)
-
-
-# --- Administrador ----------------------------------------------------------
-def admin_valido(token: str) -> bool:
-    return hmac.compare_digest(token.encode(), config.ADMIN_TOKEN.encode())
-
-
-def exigir_admin(x_admin_token: str = Header(default="")):
-    if not admin_valido(x_admin_token):
-        raise HTTPException(status_code=401, detail="Token de administrador inválido")

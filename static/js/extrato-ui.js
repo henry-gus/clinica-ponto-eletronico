@@ -1,5 +1,7 @@
-// Funções compartilhadas pelas telas de extrato (funcionário e painel do admin).
+// Funções compartilhadas pela tela de extratos.
 // Todo texto vindo do servidor entra via textContent: nunca innerHTML.
+
+const ROTULOS_AUSENCIA = { atestado: "Atestado", falta_justificada: "Falta justificada", ferias: "Férias" };
 
 function el(tag, props = {}, ...filhos) {
   const no = document.createElement(tag);
@@ -27,12 +29,21 @@ function periodoPadrao() {
   return { inicio: isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), fim: isoLocal(hoje) };
 }
 
+function formatarCpf(cpf) {
+  return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`;
+}
+
 function mensagemDeErro(resposta, dados) {
   if (resposta.status === 429) {
     const minutos = Math.ceil(Number(resposta.headers.get("Retry-After") || 0) / 60);
     return `Muitas tentativas com PIN errado. Tente de novo em ${minutos || 15} min.`;
   }
-  return typeof dados?.detail === "string" ? dados.detail : "Dados inválidos.";
+  const detalhe = dados?.detail;
+  if (typeof detalhe === "string") return detalhe;
+  if (Array.isArray(detalhe) && detalhe.length) {
+    return detalhe.map((erro) => String(erro.msg).replace(/^Value error, /, "")).join("; ");
+  }
+  return "Dados inválidos.";
 }
 
 async function baixarArquivo(resposta, nomePadrao) {
@@ -47,24 +58,43 @@ async function baixarArquivo(resposta, nomePadrao) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-function renderizarExtrato(alvo, extrato) {
+// opcoes.aoRemoverAusencia(id): quando informada, a tabela ganha a coluna de ações (modo administrador).
+function renderizarExtrato(alvo, extrato, opcoes = {}) {
   alvo.replaceChildren();
 
-  const cabecalho = ["Data", "Dia", "Marcações (entrada - saída)", "Horas", "Obs."];
+  const cabecalho = ["Data", "Dia", "Marcações (entrada - saída)", "Horas", "Situação"];
+  if (opcoes.aoRemoverAusencia) cabecalho.push("");
+
   const corpo = el("tbody");
   for (const dia of extrato.dias) {
     const marcacoes = dia.pares.map((p) => `${p.entrada} - ${p.saida ?? "(sem saída)"}`).join(" | ");
-    const classes = [["Sáb", "Dom"].includes(dia.dia_semana) ? "fds" : "", dia.incompleto ? "incompleto" : ""];
-    corpo.append(
-      el("tr", { class: classes.join(" ").trim() },
-        el("td", { text: dataBR(dia.data) }),
-        el("td", { text: dia.dia_semana }),
-        el("td", { text: marcacoes }),
-        el("td", { text: dia.horas }),
-        el("td", { text: dia.incompleto ? "Incompleta" : "" }),
-      ),
+    const situacao = dia.situacao_texto + (dia.observacao ? ` - ${dia.observacao}` : "");
+
+    const classes = [];
+    if (!dia.dia_de_trabalho) classes.push("folga");
+    if (dia.situacao === "falta") classes.push("falta");
+    if (dia.situacao === "incompleta") classes.push("incompleto");
+    if (dia.ausencia_id !== null) classes.push("ausencia");
+
+    const linha = el("tr", { class: classes.join(" ") },
+      el("td", { text: dataBR(dia.data) }),
+      el("td", { text: dia.dia_semana }),
+      el("td", { text: marcacoes }),
+      el("td", { text: dia.horas }),
+      el("td", { text: situacao }),
     );
+    if (opcoes.aoRemoverAusencia) {
+      const celula = el("td");
+      if (dia.ausencia_id !== null) {
+        const remover = el("button", { type: "button", class: "mini secundario", text: "Remover" });
+        remover.addEventListener("click", () => opcoes.aoRemoverAusencia(dia.ausencia_id));
+        celula.append(remover);
+      }
+      linha.append(celula);
+    }
+    corpo.append(linha);
   }
+
   const tabela = el("table", { class: "extrato" },
     el("thead", {}, el("tr", {}, ...cabecalho.map((titulo) => el("th", { text: titulo })))),
     corpo,
@@ -73,9 +103,13 @@ function renderizarExtrato(alvo, extrato) {
   const totais = [
     ["Dias com marcação completa", String(extrato.dias_trabalhados)],
     ["Total de horas trabalhadas", extrato.total_horas],
-    [`Horas esperadas (jornada de ${extrato.carga_horaria_diaria} h)`, extrato.horas_esperadas],
+    ["Horas esperadas", extrato.horas_esperadas],
     ["Saldo do período", extrato.saldo],
+    ["Faltas não justificadas", String(extrato.faltas)],
   ];
+  for (const [tipo, quantidade] of Object.entries(extrato.ausencias)) {
+    totais.push([`${ROTULOS_AUSENCIA[tipo] || tipo} (dias)`, String(quantidade)]);
+  }
   if (extrato.dias_incompletos) totais.push(["Dias com marcação incompleta", String(extrato.dias_incompletos)]);
 
   alvo.append(

@@ -18,11 +18,6 @@ def tela_funcionario():
     return FileResponse(STATIC_DIR / "bater-ponto.html")
 
 
-@router.get("/meu-extrato")
-def tela_extrato_funcionario():
-    return FileResponse(STATIC_DIR / "meu-extrato.html")
-
-
-@router.get("/painel")
-def tela_painel_admin():
-    return FileResponse(STATIC_DIR / "painel.html")
+@router.get("/extratos")
+def tela_extratos():
+    return FileResponse(STATIC_DIR / "extratos.html")

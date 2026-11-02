@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ponto - Extratos</title>
+  <link rel="stylesheet" href="/static/css/estilo.css">
+</head>
+<body class="pagina-larga">
+  <main class="cartao largo">
+    <h1>Ponto</h1>
+
+    <section id="tela-login">
+      <form id="form-login">
+        <label for="usuario_id">ID</label>
+        <input id="usuario_id" type="text" inputmode="numeric" pattern="[0-9]+" required autocomplete="off">
+        <label for="pin">PIN</label>
+        <input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="off">
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section id="tela-app" hidden>
+      <div class="barra">
+        <span>Olá, <strong id="nome-usuario"></strong> <small id="papel-usuario"></small></span>
+        <button type="button" id="sair" class="secundario">Sair</button>
+      </div>
+
+      <nav class="abas">
+        <button type="button" class="aba ativa" data-aba="extratos">Extratos</button>
+        <button type="button" class="aba" data-aba="funcionarios" id="aba-funcionarios" hidden>Funcionários</button>
+      </nav>
+
+      <!-- ===== Aba Extratos ===== -->
+      <section id="painel-extratos">
+        <form id="form-periodo" class="filtro">
+          <label>De <input type="date" id="inicio" required></label>
+          <label>Até <input type="date" id="fim" required></label>
+          <button type="submit">Filtrar</button>
+          <button type="button" id="baixar-pdf" class="secundario">Baixar PDF</button>
+          <button type="button" id="baixar-zip" class="secundario" hidden>Baixar todos (ZIP)</button>
+        </form>
+
+        <!-- só administrador -->
+        <div id="bloco-resumo" hidden>
+          <h2>Resumo do período</h2>
+          <div class="tabela-rolagem">
+            <table class="extrato">
+              <thead>
+                <tr><th>Pessoa</th><th>Cargo</th><th>Dias</th><th>Total</th><th>Saldo</th><th>Faltas</th><th>Ausências</th><th>Incompletos</th><th></th></tr>
+              </thead>
+              <tbody id="corpo-resumo"></tbody>
+            </table>
+          </div>
+          <p id="resumo-vazio" hidden>Nenhuma pessoa cadastrada.</p>
+        </div>
+
+        <div id="bloco-detalhe">
+          <hr>
+          <div id="detalhe"></div>
+
+          <!-- só administrador, depois de escolher alguém -->
+          <form id="form-ausencia" class="filtro caixa" hidden>
+            <h3>Registrar ausência</h3>
+            <label>Tipo
+              <select id="aus-tipo">
+                <option value="atestado">Atestado</option>
+                <option value="falta_justificada">Falta justificada</option>
+                <option value="ferias">Férias</option>
+              </select>
+            </label>
+            <label>De <input type="date" id="aus-inicio" required></label>
+            <label>Até <input type="date" id="aus-fim" required></label>
+            <label class="larga">Observação <input type="text" id="aus-obs" maxlength="200" placeholder="opcional"></label>
+            <button type="submit">Registrar</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ===== Aba Funcionários (só administrador) ===== -->
+      <section id="painel-funcionarios" hidden>
+        <h2>Cadastrados</h2>
+        <div class="tabela-rolagem">
+          <table class="extrato">
+            <thead>
+              <tr><th>ID</th><th>Nome</th><th>CPF</th><th>Cargo</th><th>Jornada</th><th>Dias</th><th>Ponto desde</th><th>Perfil</th></tr>
+            </thead>
+            <tbody id="corpo-funcionarios"></tbody>
+          </table>
+        </div>
+
+        <form id="form-funcionario" class="filtro caixa">
+          <h3>Novo cadastro</h3>
+          <label>Nome <input type="text" id="f-nome" required></label>
+          <label>CPF <input type="text" id="f-cpf" inputmode="numeric" required></label>
+          <label>Cargo <input type="text" id="f-cargo" required></label>
+          <label>Jornada diária (h) <input type="number" id="f-jornada" value="8" min="0.5" max="24" step="0.5" required></label>
+          <label>PIN (4 a 6 dígitos) <input type="password" id="f-pin" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password"></label>
+          <label>Ponto cobrado a partir de <input type="date" id="f-inicio"></label>
+          <label>Perfil
+            <select id="f-papel">
+              <option value="funcionario">Funcionário</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </label>
+          <fieldset class="dias">
+            <legend>Dias de trabalho</legend>
+            <label><input type="checkbox" name="dia" value="0" checked> Seg</label>
+            <label><input type="checkbox" name="dia" value="1" checked> Ter</label>
+            <label><input type="checkbox" name="dia" value="2" checked> Qua</label>
+            <label><input type="checkbox" name="dia" value="3" checked> Qui</label>
+            <label><input type="checkbox" name="dia" value="4" checked> Sex</label>
+            <label><input type="checkbox" name="dia" value="5"> Sáb</label>
+            <label><input type="checkbox" name="dia" value="6"> Dom</label>
+          </fieldset>
+          <button type="submit">Cadastrar</button>
+        </form>
+      </section>
+    </section>
+
+    <p id="mensagem" role="status"></p>
+  </main>
+
+  <script src="/static/js/extrato-ui.js"></script>
+  <script src="/static/js/extratos.js"></script>
+</body>
+</html>

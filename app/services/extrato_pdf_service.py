@@ -11,9 +11,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app import config
+from app import config, models
 from app.cpf import formatar_cpf
 from app.services import assinatura_service
 from app.services.extrato_service import Extrato, formatar_duracao, hora_local
@@ -27,6 +27,9 @@ _CABECALHO = ParagraphStyle("cabecalho", parent=_BASE, fontName="Helvetica-Bold"
 _NOTA = ParagraphStyle("nota", parent=_BASE, fontSize=7.5, leading=9, textColor=colors.HexColor("#555555"))
 
 
+_COR_DA_LINHA = {"falta": "#fdecea", "incompleta": "#fff4e5", **{tipo: "#e8f1fb" for tipo in models.TIPOS_AUSENCIA}}
+
+
 def _p(texto: str, estilo: ParagraphStyle = _BASE) -> Paragraph:
     # Todo texto vem de fora (nome da clínica, do funcionário...): "&" e "<" quebrariam o Paragraph.
     return Paragraph(escape(texto), estilo)
@@ -34,6 +37,13 @@ def _p(texto: str, estilo: ParagraphStyle = _BASE) -> Paragraph:
 
 def _periodo(extrato: Extrato) -> str:
     return f"{extrato.inicio:%d/%m/%Y} a {extrato.fim:%d/%m/%Y}"
+
+
+def _texto_situacao(dia) -> str:
+    texto = dia.situacao_texto
+    if dia.ausencia is not None and dia.ausencia.observacao:
+        texto += f" - {dia.ausencia.observacao}"
+    return texto
 
 
 def _texto_marcacoes(dia) -> str:
@@ -79,13 +89,13 @@ def _historia(extrato: Extrato) -> list:
     )
     quadro_id.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOTTOMPADDING", (0, 0), (-1, -1), 1), ("TOPPADDING", (0, 0), (-1, -1), 1)]))
 
-    linhas = [[_p(t, _CABECALHO) for t in ("Data", "Dia", "Marcações (entrada - saída)", "Horas", "Observação")]]
+    linhas = [[_p(t, _CABECALHO) for t in ("Data", "Dia", "Marcações (entrada - saída)", "Horas", "Situação")]]
     estilo = [
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#999999")),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e6e6e6")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
     ]
     for indice, dia in enumerate(extrato.dias, start=1):
         linhas.append([
@@ -93,20 +103,28 @@ def _historia(extrato: Extrato) -> list:
             _p(dia.dia_semana),
             _p(_texto_marcacoes(dia)),
             _p(formatar_duracao(dia.segundos) if dia.pares else ""),
-            _p("Marcação incompleta" if dia.incompleto else ""),
+            _p(_texto_situacao(dia)),
         ])
-        if dia.data.weekday() >= 5:
-            estilo.append(("BACKGROUND", (0, indice), (-1, indice), colors.HexColor("#f3f3f3")))
-    tabela = Table(linhas, colWidths=[22 * mm, 12 * mm, 84 * mm, 16 * mm, 36 * mm], repeatRows=1)
+        cor = _COR_DA_LINHA.get(dia.situacao) or ("#f3f3f3" if not dia.dia_de_trabalho else None)
+        if cor:
+            estilo.append(("BACKGROUND", (0, indice), (-1, indice), colors.HexColor(cor)))
+    tabela = Table(linhas, colWidths=[22 * mm, 12 * mm, 76 * mm, 16 * mm, 44 * mm], repeatRows=1)
     tabela.setStyle(TableStyle(estilo))
 
+    linhas_totais = [
+        ("Dias com marcação completa", str(extrato.dias_trabalhados)),
+        ("Total de horas trabalhadas", formatar_duracao(extrato.total_segundos)),
+        ("Horas esperadas", formatar_duracao(extrato.esperado_segundos)),
+        ("Saldo do período", formatar_duracao(extrato.saldo_segundos)),
+        ("Faltas não justificadas", str(extrato.faltas)),
+    ]
+    for tipo, quantidade in extrato.ausencias_por_tipo.items():
+        linhas_totais.append((f"{models.TIPOS_AUSENCIA[tipo]} (dias)", str(quantidade)))
+    if extrato.dias_incompletos:
+        linhas_totais.append(("Dias com marcação incompleta", str(extrato.dias_incompletos)))
+
     totais = Table(
-        [
-            [_p("Dias com marcação completa", _ROTULO), _p(str(extrato.dias_trabalhados))],
-            [_p("Total de horas trabalhadas", _ROTULO), _p(formatar_duracao(extrato.total_segundos))],
-            [_p("Horas esperadas (dias x jornada)", _ROTULO), _p(formatar_duracao(extrato.esperado_segundos))],
-            [_p("Saldo do período", _ROTULO), _p(formatar_duracao(extrato.saldo_segundos))],
-        ],
+        [[_p(rotulo, _ROTULO), _p(valor)] for rotulo, valor in linhas_totais],
         colWidths=[60 * mm, 30 * mm],
         hAlign="LEFT",
     )
@@ -114,10 +132,15 @@ def _historia(extrato: Extrato) -> list:
 
     nota = _p(
         "Extrato informativo, gerado a partir das marcações registradas (horários no fuso da clínica). "
-        "Só entram nas horas os pares entrada-saída: uma marcação sem par fica registrada, mas não soma horas.",
+        "Só entram nas horas os pares entrada-saída. Horas esperadas = dias de trabalho já encerrados x jornada, "
+        "sem os dias com atestado, férias ou falta justificada.",
         _NOTA,
     )
-    return [_p(TITULO, _TITULO), Spacer(1, 6 * mm), quadro_id, Spacer(1, 5 * mm), tabela, Spacer(1, 4 * mm), totais, Spacer(1, 3 * mm), nota]
+    # Totais e nota ficam juntos: se não couberem na página, vão inteiros para a próxima.
+    return [
+        _p(TITULO, _TITULO), Spacer(1, 3 * mm), quadro_id, Spacer(1, 3 * mm), tabela, Spacer(1, 3 * mm),
+        KeepTogether([totais, Spacer(1, 2 * mm), nota]),
+    ]
 
 
 def gerar_pdf(extrato: Extrato) -> bytes:

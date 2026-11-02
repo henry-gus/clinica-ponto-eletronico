@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Header, HTTPException, Response
+from typing import Annotated
 
-from app import security
+from fastapi import APIRouter, Depends, HTTPException, Response
+
+from app import models, security
 from app.database import DbSession
+from app.dependencias import sessao_opcional
 from app.services import comprovante_service
 
 router = APIRouter(prefix="/comprovantes", tags=["comprovantes"])
@@ -11,11 +14,11 @@ router = APIRouter(prefix="/comprovantes", tags=["comprovantes"])
 def baixar_comprovante(
     nsr: int,
     db: DbSession,
+    sessao: Annotated[models.Usuario | None, Depends(sessao_opcional)],
     token: str = "",
-    x_admin_token: str = Header(default=""),
 ):
-    """PDF do comprovante da marcação `nsr`. Acesso pelo link do trabalhador ou pelo admin."""
-    if not (security.validar_token_comprovante(token, nsr) or security.admin_valido(x_admin_token)):
+    """PDF do comprovante da marcação `nsr`. Acesso pelo link do trabalhador ou por um administrador logado."""
+    if not (security.validar_token_comprovante(token, nsr) or (sessao is not None and sessao.eh_admin)):
         raise HTTPException(403, "Link do comprovante inválido ou expirado.")
 
     try:
