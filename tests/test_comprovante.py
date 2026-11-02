@@ -10,7 +10,6 @@ from pypdf import PdfReader
 from app import config, models
 from app.cpf import cpf_valido
 from app.services import assinatura_service, comprovante_service
-from scripts.gerar_certificado_teste import gerar
 from tests.conftest import ADMIN
 
 
@@ -23,14 +22,6 @@ def _bater_ponto(client, usuario):
 
 def _texto(pdf: bytes) -> str:
     return "\n".join(pagina.extract_text() for pagina in PdfReader(BytesIO(pdf)).pages)
-
-
-@pytest.fixture
-def certificado(tmp_path, monkeypatch):
-    caminho = tmp_path / "teste.p12"
-    gerar(str(caminho), "senha-teste")
-    monkeypatch.setattr(config, "CERT_P12_PATH", str(caminho))
-    monkeypatch.setattr(config, "CERT_P12_SENHA", "senha-teste")
 
 
 def test_resposta_do_ponto_traz_link_do_comprovante(client, usuario):

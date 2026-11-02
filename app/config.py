@@ -37,3 +37,11 @@ COMPROVANTE_VALIDADE_HORAS = int(os.getenv("COMPROVANTE_VALIDADE_HORAS", "72"))
 # Certificado digital (.p12/.pfx) para assinar o PDF. Vazio = comprovante sem assinatura.
 CERT_P12_PATH = os.getenv("CERT_P12_PATH", "")
 CERT_P12_SENHA = os.getenv("CERT_P12_SENHA", "")
+
+# --- Acesso do funcionário ao extrato ---------------------------------------
+# Após informar ID e PIN, o funcionário recebe uma sessão curta.
+SESSAO_FUNCIONARIO_MINUTOS = int(os.getenv("SESSAO_FUNCIONARIO_MINUTOS", "15"))
+
+# Limite de erros de PIN por funcionário (vale para bater ponto e para o extrato).
+PIN_MAX_TENTATIVAS = int(os.getenv("PIN_MAX_TENTATIVAS", "5"))
+PIN_BLOQUEIO_MINUTOS = int(os.getenv("PIN_BLOQUEIO_MINUTOS", "15"))

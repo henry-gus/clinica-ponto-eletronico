@@ -24,3 +24,8 @@ def criar_usuario(dados: schemas.UsuarioCreate, db: DbSession):
         raise HTTPException(409, "Já existe um funcionário com este CPF.")
     db.refresh(usuario)
     return usuario
+
+
+@router.get("/", response_model=list[schemas.UsuarioResponse])
+def listar_usuarios(db: DbSession):
+    return db.query(models.Usuario).order_by(models.Usuario.nome, models.Usuario.id).all()

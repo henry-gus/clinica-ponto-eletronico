@@ -51,3 +51,54 @@ class RelatorioResponse(BaseModel):
     total_horas_trabalhadas: float
     horas_extras: float
     dias_com_marcacao_incompleta: list[date]
+
+
+# --- Extrato (folha de ponto) ---
+class LoginRequest(BaseModel):
+    usuario_id: int
+    pin: str
+
+
+class SessaoResponse(BaseModel):
+    token: str
+    nome: str
+    expira_em_segundos: int
+
+
+class ParResponse(BaseModel):
+    entrada: str  # HH:MM no horário da clínica
+    saida: str | None  # None = entrada sem saída
+
+
+class DiaResponse(BaseModel):
+    data: date
+    dia_semana: str
+    pares: list[ParResponse]
+    horas: str  # HH:MM; vazio se o dia não tem par completo
+    incompleto: bool
+
+
+class ExtratoResponse(BaseModel):
+    usuario_id: int
+    nome: str
+    cargo: str
+    cpf: str
+    carga_horaria_diaria: float
+    inicio: date
+    fim: date
+    dias: list[DiaResponse]
+    total_horas: str
+    horas_esperadas: str
+    saldo: str
+    dias_trabalhados: int
+    dias_incompletos: int
+
+
+class ResumoResponse(BaseModel):
+    usuario_id: int
+    nome: str
+    cargo: str
+    dias_trabalhados: int
+    total_horas: str
+    saldo: str
+    dias_incompletos: int

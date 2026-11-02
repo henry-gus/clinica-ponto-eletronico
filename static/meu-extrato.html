@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meu extrato de ponto</title>
+  <link rel="stylesheet" href="/static/css/estilo.css">
+</head>
+<body class="pagina-larga">
+  <main class="cartao largo">
+    <h1>Meu extrato de ponto</h1>
+
+    <section id="tela-login">
+      <form id="form-login">
+        <label for="usuario_id">ID</label>
+        <input id="usuario_id" type="text" inputmode="numeric" pattern="[0-9]+" required autocomplete="off">
+        <label for="pin">PIN</label>
+        <input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="off">
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section id="tela-extrato" hidden>
+      <div class="barra">
+        <span>Olá, <strong id="nome-usuario"></strong></span>
+        <button type="button" id="sair" class="secundario">Sair</button>
+      </div>
+      <form id="form-periodo" class="filtro">
+        <label>De <input type="date" id="inicio" required></label>
+        <label>Até <input type="date" id="fim" required></label>
+        <button type="submit">Filtrar</button>
+        <button type="button" id="baixar-pdf" class="secundario">Baixar PDF</button>
+      </form>
+      <div id="extrato"></div>
+    </section>
+
+    <p id="mensagem" role="status"></p>
+  </main>
+
+  <script src="/static/js/extrato-ui.js"></script>
+  <script src="/static/js/meu-extrato.js"></script>
+</body>
+</html>

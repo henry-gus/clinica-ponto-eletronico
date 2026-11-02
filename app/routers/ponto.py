@@ -2,9 +2,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app import config, models, schemas, security
+from app import config, schemas, security
 from app.database import DbSession
-from app.services import ponto_service
+from app.services import autenticacao_service, ponto_service
 
 router = APIRouter(tags=["ponto"])
 
@@ -26,10 +26,17 @@ def registrar_ponto(
     if not security.validar_token_qr(token):
         raise HTTPException(403, "QR Code inválido ou expirado. Escaneie o código atual na recepção.")
 
-    usuario = db.get(models.Usuario, usuario_id)
-    # Mesma mensagem para ID inexistente e PIN errado, para não revelar quais IDs existem.
-    if usuario is None or not security.verificar_pin(dados.pin, usuario.pin_hash):
+    try:
+        autenticacao_service.autenticar(db, usuario_id, dados.pin)
+    except autenticacao_service.CredenciaisInvalidas:
+        # Mesma mensagem para ID inexistente e PIN errado, para não revelar quais IDs existem.
         raise HTTPException(403, "ID ou PIN inválido.")
+    except autenticacao_service.TentativasEsgotadas as erro:
+        raise HTTPException(
+            429,
+            "Muitas tentativas com PIN errado. Aguarde alguns minutos.",
+            headers={"Retry-After": str(erro.segundos)},
+        )
 
     marcacao, tipo = ponto_service.registrar_marcacao(db, usuario_id)
     token = security.criar_token_comprovante(marcacao.nsr)

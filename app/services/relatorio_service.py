@@ -12,6 +12,13 @@ def agrupar_por_dia(momentos: list[datetime]) -> dict[date, list[datetime]]:
     return dias
 
 
+def parear(marcacoes: list[datetime]) -> tuple[list[tuple[datetime, datetime]], datetime | None]:
+    """Pareia as marcações de um dia (1ª-2ª, 3ª-4ª...). Devolve os pares e a marcação sobrando, se houver."""
+    pares = [(marcacoes[i], marcacoes[i + 1]) for i in range(0, len(marcacoes) - 1, 2)]
+    sobra = marcacoes[-1] if len(marcacoes) % 2 else None
+    return pares, sobra
+
+
 def calcular_relatorio(momentos: list[datetime], carga_horaria_diaria: float) -> dict:
     """Pareia as marcações de cada dia (1ª-2ª, 3ª-4ª...) e soma as horas.
 
@@ -23,12 +30,11 @@ def calcular_relatorio(momentos: list[datetime], carga_horaria_diaria: float) ->
     incompletos: list[date] = []
 
     for dia, marcacoes in sorted(agrupar_por_dia(momentos).items()):
-        pares = len(marcacoes) // 2
-        for i in range(pares):
-            total_segundos += (marcacoes[2 * i + 1] - marcacoes[2 * i]).total_seconds()
+        pares, sobra = parear(marcacoes)
+        total_segundos += sum((saida - entrada).total_seconds() for entrada, saida in pares)
         if pares:
             dias_trabalhados += 1
-        if len(marcacoes) % 2:
+        if sobra is not None:
             incompletos.append(dia)
 
     total_horas = total_segundos / 3600
