@@ -28,6 +28,7 @@ TIPOS_AUSENCIA = {
     "atestado": "Atestado",
     "falta_justificada": "Falta justificada",
     "ferias": "Férias",
+    "clinica_fechada": "Clínica fechada",
 }
 
 
@@ -45,6 +46,7 @@ class Usuario(Base):
     dias_trabalho = Column(String, nullable=False, default="0,1,2,3,4", server_default="0,1,2,3,4")
     # A partir de quando o ponto é cobrado. Antes disso não há falta. Vazio = sem limite.
     data_inicio = Column(Date, nullable=True)
+    saldo_inicial = Column(Float, nullable=False, default=0.0, server_default="0")
 
     @property
     def eh_admin(self) -> bool:
@@ -69,6 +71,8 @@ class Marcacao(Base):
     nsr = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
     momento = Column(UTCDateTime, nullable=False, index=True)
+    manual = Column(Integer, nullable=False, default=0, server_default="0")
+    registrado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
 
 
 @event.listens_for(Marcacao, "before_update")
@@ -89,5 +93,17 @@ class Ausencia(Base):
     data = Column(Date, nullable=False, index=True)
     tipo = Column(String, nullable=False)
     observacao = Column(String, nullable=True)
+    registrado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    criado_em = Column(UTCDateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class FechamentoClinica(Base):
+    """Data em que a clínica não funcionou; vale para todos os funcionários."""
+
+    __tablename__ = "fechamentos_clinica"
+
+    id = Column(Integer, primary_key=True)
+    data = Column(Date, nullable=False, unique=True, index=True)
+    motivo = Column(String, nullable=True)
     registrado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     criado_em = Column(UTCDateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

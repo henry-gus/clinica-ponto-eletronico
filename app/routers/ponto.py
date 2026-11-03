@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app import config, schemas, security
+from app import config, models, schemas, security
 from app.database import DbSession
 from app.services import autenticacao_service, ponto_service
 
@@ -37,6 +37,10 @@ def registrar_ponto(
             "Muitas tentativas com PIN errado. Aguarde alguns minutos.",
             headers={"Retry-After": str(erro.segundos)},
         )
+
+    usuario = db.get(models.Usuario, usuario_id)
+    if usuario is not None and usuario.eh_admin:
+        raise HTTPException(403, "Administradores não registram ponto.")
 
     marcacao, tipo = ponto_service.registrar_marcacao(db, usuario_id)
     token = security.criar_token_comprovante(marcacao.nsr)

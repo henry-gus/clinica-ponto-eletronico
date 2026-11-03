@@ -41,6 +41,7 @@ class DiaExtrato:
     pares: list[tuple[datetime, datetime]] = field(default_factory=list)
     sobra: datetime | None = None  # entrada sem saída
     ausencia: models.Ausencia | None = None
+    fechamento: models.FechamentoClinica | None = None
     dia_de_trabalho: bool = False
     contar_esperado: bool = False
     falta: bool = False
@@ -59,6 +60,8 @@ class DiaExtrato:
 
     @property
     def situacao(self) -> str:
+        if self.fechamento is not None:
+            return "clinica_fechada"
         if self.ausencia is not None:
             return self.ausencia.tipo
         if self.incompleto:
@@ -107,7 +110,7 @@ class Extrato:
 
     @property
     def saldo_segundos(self) -> float:
-        return self.total_segundos - self.esperado_segundos
+        return self.total_segundos - self.esperado_segundos + self.usuario.saldo_inicial * 3600
 
 
 def limites_utc(inicio: date, fim: date) -> tuple[datetime, datetime]:
@@ -145,10 +148,21 @@ def buscar_ausencias(
     return por_usuario
 
 
+def buscar_fechamentos(db: Session, inicio: date, fim: date) -> dict[date, models.FechamentoClinica]:
+    return {
+        item.data: item
+        for item in db.query(models.FechamentoClinica).filter(
+            models.FechamentoClinica.data >= inicio,
+            models.FechamentoClinica.data <= fim,
+        )
+    }
+
+
 def montar_extrato(
     usuario: models.Usuario,
     momentos: list[datetime],
     ausencias: dict[date, models.Ausencia],
+    fechamentos: dict[date, models.FechamentoClinica],
     inicio: date,
     fim: date,
     hoje: date,
@@ -156,19 +170,21 @@ def montar_extrato(
     """Um item por dia do período (inclusive dias sem marcação), como numa folha de ponto."""
     por_dia = relatorio_service.agrupar_por_dia(momentos)
     dias_da_escala = set(usuario.dias_trabalho_lista)
-
     dias = []
     for deslocamento in range((fim - inicio).days + 1):
         data = inicio + timedelta(days=deslocamento)
         pares, sobra = relatorio_service.parear(por_dia.get(data, []))
         ausencia = ausencias.get(data)
-
+        fechamento = fechamentos.get(data)
         de_trabalho = data.weekday() in dias_da_escala and (usuario.data_inicio is None or data >= usuario.data_inicio)
         encerrado = data < hoje or (data == hoje and bool(pares))
-        contar = de_trabalho and ausencia is None and encerrado
+        contar = de_trabalho and ausencia is None and fechamento is None and encerrado and not usuario.eh_admin
+        if usuario.eh_admin:
+            pares, sobra = [], None
         dias.append(DiaExtrato(
-            data=data, pares=pares, sobra=sobra, ausencia=ausencia,
-            dia_de_trabalho=de_trabalho, contar_esperado=contar,
+            data=data, pares=pares, sobra=sobra, ausencia=ausencia, fechamento=fechamento,
+            dia_de_trabalho=(de_trabalho and fechamento is None and not usuario.eh_admin),
+            contar_esperado=contar,
             falta=contar and not pares and sobra is None,
         ))
     return Extrato(usuario=usuario, inicio=inicio, fim=fim, dias=dias)
@@ -179,17 +195,21 @@ def extrato_do_usuario(
 ) -> Extrato:
     momentos = buscar_momentos(db, inicio, fim, usuario.id).get(usuario.id, [])
     ausencias = buscar_ausencias(db, inicio, fim, usuario.id).get(usuario.id, {})
-    return montar_extrato(usuario, momentos, ausencias, inicio, fim, hoje or hoje_local())
+    fechamentos = buscar_fechamentos(db, inicio, fim)
+    return montar_extrato(usuario, momentos, ausencias, fechamentos, inicio, fim, hoje or hoje_local())
 
 
 def extratos_de_todos(db: Session, inicio: date, fim: date, hoje: date | None = None) -> list[Extrato]:
-    """Extrato de cada pessoa cadastrada, em ordem alfabética (3 consultas no total)."""
+    """Extrato de cada funcionário, sem incluir administradores."""
     hoje = hoje or hoje_local()
-    usuarios = db.query(models.Usuario).order_by(models.Usuario.nome, models.Usuario.id).all()
+    usuarios = db.query(models.Usuario).filter(
+        models.Usuario.papel == "funcionario"
+    ).order_by(models.Usuario.nome, models.Usuario.id).all()
     momentos = buscar_momentos(db, inicio, fim)
     ausencias = buscar_ausencias(db, inicio, fim)
+    fechamentos = buscar_fechamentos(db, inicio, fim)
     return [
-        montar_extrato(u, momentos.get(u.id, []), ausencias.get(u.id, {}), inicio, fim, hoje)
+        montar_extrato(u, momentos.get(u.id, []), ausencias.get(u.id, {}), fechamentos, inicio, fim, hoje)
         for u in usuarios
     ]
 
@@ -202,6 +222,7 @@ def para_resposta(extrato: Extrato) -> dict:
         "cargo": usuario.cargo,
         "cpf": usuario.cpf,
         "carga_horaria_diaria": usuario.carga_horaria_diaria,
+        "saldo_inicial": formatar_duracao(usuario.saldo_inicial * 3600),
         "inicio": extrato.inicio,
         "fim": extrato.fim,
         "dias": [
@@ -215,7 +236,8 @@ def para_resposta(extrato: Extrato) -> dict:
                 "situacao": dia.situacao,
                 "situacao_texto": dia.situacao_texto,
                 "ausencia_id": dia.ausencia.id if dia.ausencia else None,
-                "observacao": dia.ausencia.observacao if dia.ausencia else None,
+                "fechamento_id": dia.fechamento.id if dia.fechamento else None,
+                "observacao": (dia.ausencia.observacao if dia.ausencia else dia.fechamento.motivo if dia.fechamento else None),
             }
             for dia in extrato.dias
         ],

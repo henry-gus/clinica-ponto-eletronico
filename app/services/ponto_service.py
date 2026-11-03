@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,42 @@ def registrar_marcacao(
     tipo = "entrada" if anteriores % 2 == 0 else "saida"
 
     marcacao = models.Marcacao(usuario_id=usuario_id, momento=agora)
+    db.add(marcacao)
+    db.commit()
+    db.refresh(marcacao)
+    return marcacao, tipo
+
+
+class TipoMarcacaoInvalido(Exception):
+    pass
+
+
+def registrar_marcacao_admin(
+    db: Session, usuario_id: int, momento: datetime, tipo: str, admin_id: int
+) -> tuple[models.Marcacao, str]:
+    """Registra uma marcação retroativa lançada pelo administrador, mantendo a ordem entrada/saída."""
+    usuario = db.get(models.Usuario, usuario_id)
+    if usuario is None or usuario.eh_admin:
+        raise LookupError("Funcionário não encontrado.")
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=config.FUSO)
+    momento = momento.astimezone(timezone.utc)
+    inicio, fim = _limites_do_dia_local(momento)
+    existentes = db.query(models.Marcacao).filter(
+        models.Marcacao.usuario_id == usuario_id,
+        models.Marcacao.momento >= inicio,
+        models.Marcacao.momento < fim,
+    ).all()
+    candidato = (momento, max((m.nsr for m in existentes), default=0) + 1)
+    ordenadas = sorted([(m.momento, m.nsr) for m in existentes] + [candidato])
+    indice = ordenadas.index(candidato)
+    tipo_esperado = "entrada" if indice % 2 == 0 else "saida"
+    if tipo != tipo_esperado:
+        raise TipoMarcacaoInvalido(f"A próxima marcação nesta posição deve ser uma {tipo_esperado}.")
+
+    marcacao = models.Marcacao(
+        usuario_id=usuario_id, momento=momento, manual=1, registrado_por=admin_id
+    )
     db.add(marcacao)
     db.commit()
     db.refresh(marcacao)

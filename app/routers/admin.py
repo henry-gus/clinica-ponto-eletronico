@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from app import models, schemas
 from app.database import DbSession
 from app.dependencias import Admin, Periodo, exigir_admin, validar_intervalo
-from app.services import ausencia_service, extrato_pdf_service, extrato_service
+from app.services import ausencia_service, fechamento_service, extrato_pdf_service, extrato_service, ponto_service
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(exigir_admin)])
 
@@ -57,11 +57,11 @@ def extratos_zip(db: DbSession, periodo: Periodo):
 
 
 @router.post("/ausencias", response_model=list[schemas.AusenciaResponse], status_code=201)
-def registrar_ausencia(dados: schemas.AusenciaCreate, db: DbSession, admin: Admin):
-    """Atestado, falta justificada ou férias: uma ausência por dia, de `inicio` a `fim`."""
+def corrigir_ausencia(dados: schemas.AusenciaCreate, db: DbSession, admin: Admin):
+    """Corrige ausências individuais: atestado, falta justificada ou férias."""
     validar_intervalo(dados.inicio, dados.fim)
     try:
-        return ausencia_service.registrar(
+        return ausencia_service.corrigir(
             db, admin, dados.usuario_id, dados.tipo, dados.inicio, dados.fim, dados.observacao
         )
     except ausencia_service.UsuarioInexistente:
@@ -77,3 +77,37 @@ def remover_ausencia(ausencia_id: int, db: DbSession):
         ausencia_service.remover(db, ausencia_id)
     except ausencia_service.AusenciaInexistente:
         raise HTTPException(404, "Registro de ausência não encontrado.")
+
+
+@router.post("/fechamentos", response_model=list[schemas.FechamentoResponse], status_code=201)
+def registrar_fechamento(dados: schemas.FechamentoCreate, db: DbSession, admin: Admin):
+    validar_intervalo(dados.inicio, dados.fim)
+    try:
+        return fechamento_service.registrar(db, admin, dados.inicio, dados.fim, dados.motivo)
+    except fechamento_service.ConflitoDeFechamento as erro:
+        datas = ", ".join(f"{d:%d/%m/%Y}" for d in erro.datas)
+        raise HTTPException(409, f"A clínica já possui fechamento registrado em: {datas}.")
+
+
+@router.delete("/fechamentos/{fechamento_id}", status_code=204)
+def remover_fechamento(fechamento_id: int, db: DbSession):
+    try:
+        fechamento_service.remover(db, fechamento_id)
+    except LookupError:
+        raise HTTPException(404, "Fechamento não encontrado.")
+
+
+@router.post("/marcacoes", response_model=schemas.MarcacaoResponse, status_code=201)
+def criar_marcacao_manual(dados: schemas.MarcacaoAdminCreate, db: DbSession, admin: Admin):
+    try:
+        marcacao, tipo = ponto_service.registrar_marcacao_admin(
+            db, dados.usuario_id, dados.momento, dados.tipo, admin.id
+        )
+    except LookupError:
+        raise HTTPException(404, "Funcionário não encontrado.")
+    except ponto_service.TipoMarcacaoInvalido as erro:
+        raise HTTPException(409, str(erro))
+    return schemas.MarcacaoResponse(
+        nsr=marcacao.nsr, usuario_id=marcacao.usuario_id, tipo=tipo,
+        momento=marcacao.momento, comprovante_url=None,
+    )

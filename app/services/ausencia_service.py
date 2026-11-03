@@ -22,7 +22,7 @@ class ConflitoDeAusencia(Exception):
         self.datas = datas
 
 
-def registrar(
+def corrigir(
     db: Session, admin: models.Usuario, usuario_id: int, tipo: str, inicio: date, fim: date, observacao: str | None
 ) -> list[models.Ausencia]:
     """Uma ausência por dia do intervalo (inclusive fins de semana: férias e atestados contam dias corridos).

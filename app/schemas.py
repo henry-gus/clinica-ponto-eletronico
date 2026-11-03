@@ -18,6 +18,7 @@ class UsuarioCreate(BaseModel):
     papel: Literal["funcionario", "admin"] = "funcionario"
     dias_trabalho: list[int] = Field(default_factory=lambda: list(DIAS_PADRAO), min_length=1)
     data_inicio: date | None = None  # vazio = o ponto é cobrado desde sempre
+    saldo_inicial: float = Field(0.0, ge=-100000, le=100000)
 
     @field_validator("cpf")
     @classmethod
@@ -44,6 +45,7 @@ class UsuarioResponse(BaseModel):
     papel: str
     dias_trabalho: list[int] = Field(validation_alias="dias_trabalho_lista")
     data_inicio: date | None
+    saldo_inicial: float
 
     model_config = {"from_attributes": True}
 
@@ -57,7 +59,7 @@ class MarcacaoResponse(BaseModel):
     usuario_id: int
     tipo: Literal["entrada", "saida"]
     momento: datetime  # UTC; o frontend converte para o horário local
-    comprovante_url: str  # link do PDF, válido por COMPROVANTE_VALIDADE_HORAS
+    comprovante_url: str | None  # link do PDF; marcações administrativas não geram comprovante do QR
 
 
 class RelatorioResponse(BaseModel):
@@ -102,6 +104,7 @@ class DiaResponse(BaseModel):
     situacao: str  # "", "falta", "incompleta" ou o tipo da ausência
     situacao_texto: str
     ausencia_id: int | None
+    fechamento_id: int | None = None
     observacao: str | None
 
 
@@ -111,6 +114,7 @@ class ExtratoResponse(BaseModel):
     cargo: str
     cpf: str
     carga_horaria_diaria: float
+    saldo_inicial: str
     inicio: date
     fim: date
     dias: list[DiaResponse]
@@ -151,3 +155,24 @@ class AusenciaResponse(BaseModel):
     observacao: str | None
 
     model_config = {"from_attributes": True}
+
+
+class FechamentoCreate(BaseModel):
+    inicio: date
+    fim: date
+    motivo: str | None = Field(None, max_length=200)
+
+
+class FechamentoResponse(BaseModel):
+    id: int
+    data: date
+    motivo: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class MarcacaoAdminCreate(BaseModel):
+    usuario_id: int
+    momento: datetime
+    tipo: Literal["entrada", "saida"]
+

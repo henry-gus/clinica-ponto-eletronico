@@ -27,11 +27,11 @@ def test_acrescenta_as_colunas_novas_sem_perder_os_dados(tmp_path):
     acrescentadas = migrar_esquema(engine)
     Base.metadata.create_all(bind=engine)  # cria a tabela de ausências
 
-    assert sorted(acrescentadas) == ["usuarios.data_inicio", "usuarios.dias_trabalho", "usuarios.papel"]
+    assert sorted(acrescentadas) == ["usuarios.data_inicio", "usuarios.dias_trabalho", "usuarios.papel", "usuarios.saldo_inicial"]
     assert "ausencias" in inspect(engine).get_table_names()
     with sessionmaker(bind=engine)() as db:
         ana = db.query(models.Usuario).one()
-        assert (ana.nome, ana.papel, ana.dias_trabalho_lista, ana.data_inicio) == ("Ana Souza", "funcionario", [0, 1, 2, 3, 4], None)
+        assert (ana.nome, ana.papel, ana.dias_trabalho_lista, ana.data_inicio, ana.saldo_inicial) == ("Ana Souza", "funcionario", [0, 1, 2, 3, 4], None, 0)
         assert not ana.eh_admin
 
 

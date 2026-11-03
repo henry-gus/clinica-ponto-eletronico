@@ -18,6 +18,7 @@ def criar_usuario(db: Session, dados: schemas.UsuarioCreate) -> models.Usuario:
         papel=dados.papel,
         dias_trabalho=",".join(str(dia) for dia in dados.dias_trabalho),
         data_inicio=dados.data_inicio,
+        saldo_inicial=dados.saldo_inicial,
     )
     db.add(usuario)
     try:

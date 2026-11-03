@@ -43,6 +43,8 @@ def _texto_situacao(dia) -> str:
     texto = dia.situacao_texto
     if dia.ausencia is not None and dia.ausencia.observacao:
         texto += f" - {dia.ausencia.observacao}"
+    elif dia.fechamento is not None and dia.fechamento.motivo:
+        texto += f" - {dia.fechamento.motivo}"
     return texto
 
 
@@ -115,6 +117,7 @@ def _historia(extrato: Extrato) -> list:
         ("Dias com marcação completa", str(extrato.dias_trabalhados)),
         ("Total de horas trabalhadas", formatar_duracao(extrato.total_segundos)),
         ("Horas esperadas", formatar_duracao(extrato.esperado_segundos)),
+        ("Saldo inicial", formatar_duracao(usuario.saldo_inicial * 3600)),
         ("Saldo do período", formatar_duracao(extrato.saldo_segundos)),
         ("Faltas não justificadas", str(extrato.faltas)),
     ]
@@ -133,7 +136,7 @@ def _historia(extrato: Extrato) -> list:
     nota = _p(
         "Extrato informativo, gerado a partir das marcações registradas (horários no fuso da clínica). "
         "Só entram nas horas os pares entrada-saída. Horas esperadas = dias de trabalho já encerrados x jornada, "
-        "sem os dias com atestado, férias ou falta justificada.",
+        "sem os dias com atestado, férias, falta justificada ou fechamento da clínica; o saldo inicial é somado ao saldo do período.",
         _NOTA,
     )
     # Totais e nota ficam juntos: se não couberem na página, vão inteiros para a próxima.

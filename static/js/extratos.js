@@ -102,9 +102,10 @@ async function verPessoa(id) {
   if (!resposta.ok) return mostrar(mensagemDeErro(resposta, dados));
 
   selecionado = id;
-  renderizarExtrato($("detalhe"), dados, { aoRemoverAusencia: removerAusencia });
+  renderizarExtrato($("detalhe"), dados, { aoRemoverAusencia: removerAusencia, aoRemoverFechamento: removerFechamento });
   $("bloco-detalhe").hidden = false;
   $("form-ausencia").hidden = false;
+  $("form-marcacao").hidden = false;
   $("baixar-pdf").disabled = false;
   $("bloco-detalhe").scrollIntoView({ behavior: "smooth" });
 }
@@ -127,7 +128,7 @@ async function baixarZip() {
 }
 
 // --------------------------------------------------------------- ausências
-async function registrarAusencia(evento) {
+async function corrigirAusencia(evento) {
   evento.preventDefault();
   if (selecionado === null) return;
   const resposta = await chamar("/admin/ausencias", {
@@ -147,7 +148,7 @@ async function registrarAusencia(evento) {
 
   $("aus-obs").value = "";
   await carregarResumo();
-  mostrar(`${dados.length} dia(s) registrado(s).`, "ok");
+  mostrar(`${dados.length} dia(s) de ausência corrigido(s).`, "ok");
 }
 
 async function removerAusencia(id) {
@@ -157,6 +158,56 @@ async function removerAusencia(id) {
   if (!resposta.ok) return mostrar(mensagemDeErro(resposta, await lerJson(resposta)));
   await carregarResumo();
   mostrar("Registro removido.", "ok");
+}
+
+// ----------------------------------------------------- fechamento da clínica
+async function registrarFechamento(evento) {
+  evento.preventDefault();
+  const resposta = await chamar("/admin/fechamentos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      inicio: $("fech-inicio").value,
+      fim: $("fech-fim").value,
+      motivo: $("fech-motivo").value.trim() || null,
+    }),
+  });
+  if (!resposta) return;
+  const dados = await lerJson(resposta);
+  if (!resposta.ok) return mostrar(mensagemDeErro(resposta, dados));
+  $("fech-motivo").value = "";
+  await carregarResumo();
+  mostrar(`${dados.length} dia(s) de fechamento registrado(s).`, "ok");
+}
+
+async function removerFechamento(id) {
+  if (!window.confirm("Remover o fechamento da clínica nesta data?")) return;
+  const resposta = await chamar(`/admin/fechamentos/${id}`, { method: "DELETE" });
+  if (!resposta) return;
+  if (!resposta.ok) return mostrar(mensagemDeErro(resposta, await lerJson(resposta)));
+  await carregarResumo();
+  mostrar("Fechamento removido.", "ok");
+}
+
+// ------------------------------------------------------- marcação manual
+async function adicionarMarcacao(evento) {
+  evento.preventDefault();
+  if (selecionado === null) return;
+  const resposta = await chamar("/admin/marcacoes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      usuario_id: selecionado,
+      momento: $("marc-momento").value,
+      tipo: $("marc-tipo").value,
+    }),
+  });
+  if (!resposta) return;
+  const dados = await lerJson(resposta);
+  if (!resposta.ok) return mostrar(mensagemDeErro(resposta, dados));
+  $("marc-momento").value = "";
+  await carregarResumo();
+  mostrar(`Marcação de ${dados.tipo} adicionada.`, "ok");
 }
 
 // ------------------------------------------------------------ funcionários
@@ -172,6 +223,7 @@ async function carregarFuncionarios() {
     el("td", { text: formatarCpf(pessoa.cpf) }),
     el("td", { text: pessoa.cargo }),
     el("td", { text: `${pessoa.carga_horaria_diaria} h` }),
+    el("td", { text: `${pessoa.saldo_inicial} h` }),
     el("td", { text: pessoa.dias_trabalho.map((d) => NOMES_DIAS[d]).join(" ") }),
     el("td", { text: pessoa.data_inicio ? dataBR(pessoa.data_inicio) : "sempre" }),
     el("td", { text: ROTULOS_PAPEL[pessoa.papel] || pessoa.papel }),
@@ -202,6 +254,7 @@ async function cadastrarPessoa(evento) {
   if (!resposta.ok) return mostrar(mensagemDeErro(resposta, dados));
 
   for (const campo of ["f-nome", "f-cpf", "f-cargo", "f-pin"]) $(campo).value = "";
+  $("f-saldo-inicial").value = "0";
   await carregarFuncionarios();
   mostrar(`${dados.nome} cadastrado(a) com o ID ${dados.id}.`, "ok");
 }
@@ -256,7 +309,9 @@ document.querySelectorAll(".aba").forEach((botao) => botao.addEventListener("cli
 $("form-periodo").addEventListener("submit", (evento) => { evento.preventDefault(); carregarExtratos(); });
 $("baixar-pdf").addEventListener("click", baixarPdf);
 $("baixar-zip").addEventListener("click", baixarZip);
-$("form-ausencia").addEventListener("submit", registrarAusencia);
+$("form-ausencia").addEventListener("submit", corrigirAusencia);
+$("form-fechamento").addEventListener("submit", registrarFechamento);
+$("form-marcacao").addEventListener("submit", adicionarMarcacao);
 $("form-funcionario").addEventListener("submit", cadastrarPessoa);
 $("sair").addEventListener("click", () => sair());
 
@@ -265,6 +320,8 @@ $("inicio").value = padrao.inicio;
 $("fim").value = padrao.fim;
 $("aus-inicio").value = padrao.fim;
 $("aus-fim").value = padrao.fim;
+$("fech-inicio").value = padrao.fim;
+$("fech-fim").value = padrao.fim;
 $("f-inicio").value = padrao.fim;
 
 // Ao recarregar a página, retoma a sessão se o token ainda valer.

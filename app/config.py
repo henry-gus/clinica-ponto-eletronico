@@ -20,8 +20,8 @@ BASE_URL = os.getenv("BASE_URL", "")
 # Fuso da clínica: define o que conta como "dia" e "mês" nos relatórios e nos comprovantes.
 FUSO = ZoneInfo(os.getenv("TZ_CLINICA", "America/Sao_Paulo"))
 
-# O QR é renovado a cada 60s na recepção; 120s dá tempo de abrir a página e digitar ID e PIN.
-QR_VALIDADE_SEGUNDOS = int(os.getenv("QR_VALIDADE_SEGUNDOS", "120"))
+# O QR é renovado a cada 60s na recepção; 
+QR_VALIDADE_SEGUNDOS = int(os.getenv("QR_VALIDADE_SEGUNDOS", "60"))
 
 # --- Comprovante de registro de ponto (Portaria 671, arts. 79 e 80) ---------
 # Dados do empregador impressos em todo comprovante.

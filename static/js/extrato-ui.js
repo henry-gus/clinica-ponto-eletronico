@@ -1,7 +1,7 @@
 // Funções compartilhadas pela tela de extratos.
 // Todo texto vindo do servidor entra via textContent: nunca innerHTML.
 
-const ROTULOS_AUSENCIA = { atestado: "Atestado", falta_justificada: "Falta justificada", ferias: "Férias" };
+const ROTULOS_AUSENCIA = { atestado: "Atestado", falta_justificada: "Falta justificada", ferias: "Férias", clinica_fechada: "Clínica fechada" };
 
 function el(tag, props = {}, ...filhos) {
   const no = document.createElement(tag);
@@ -63,7 +63,7 @@ function renderizarExtrato(alvo, extrato, opcoes = {}) {
   alvo.replaceChildren();
 
   const cabecalho = ["Data", "Dia", "Marcações (entrada - saída)", "Horas", "Situação"];
-  if (opcoes.aoRemoverAusencia) cabecalho.push("");
+  if (opcoes.aoRemoverAusencia || opcoes.aoRemoverFechamento) cabecalho.push("");
 
   const corpo = el("tbody");
   for (const dia of extrato.dias) {
@@ -74,7 +74,7 @@ function renderizarExtrato(alvo, extrato, opcoes = {}) {
     if (!dia.dia_de_trabalho) classes.push("folga");
     if (dia.situacao === "falta") classes.push("falta");
     if (dia.situacao === "incompleta") classes.push("incompleto");
-    if (dia.ausencia_id !== null) classes.push("ausencia");
+    if (dia.ausencia_id !== null || dia.fechamento_id !== null) classes.push("ausencia");
 
     const linha = el("tr", { class: classes.join(" ") },
       el("td", { text: dataBR(dia.data) }),
@@ -83,11 +83,16 @@ function renderizarExtrato(alvo, extrato, opcoes = {}) {
       el("td", { text: dia.horas }),
       el("td", { text: situacao }),
     );
-    if (opcoes.aoRemoverAusencia) {
+    if (opcoes.aoRemoverAusencia || opcoes.aoRemoverFechamento) {
       const celula = el("td");
-      if (dia.ausencia_id !== null) {
-        const remover = el("button", { type: "button", class: "mini secundario", text: "Remover" });
+      if (dia.ausencia_id !== null && opcoes.aoRemoverAusencia) {
+        const remover = el("button", { type: "button", class: "mini secundario", text: "Remover ausência" });
         remover.addEventListener("click", () => opcoes.aoRemoverAusencia(dia.ausencia_id));
+        celula.append(remover);
+      }
+      if (dia.fechamento_id !== null && opcoes.aoRemoverFechamento) {
+        const remover = el("button", { type: "button", class: "mini secundario", text: "Remover fechamento" });
+        remover.addEventListener("click", () => opcoes.aoRemoverFechamento(dia.fechamento_id));
         celula.append(remover);
       }
       linha.append(celula);
@@ -104,6 +109,7 @@ function renderizarExtrato(alvo, extrato, opcoes = {}) {
     ["Dias com marcação completa", String(extrato.dias_trabalhados)],
     ["Total de horas trabalhadas", extrato.total_horas],
     ["Horas esperadas", extrato.horas_esperadas],
+    ["Saldo inicial", `${extrato.saldo_inicial ?? "—"}`],
     ["Saldo do período", extrato.saldo],
     ["Faltas não justificadas", String(extrato.faltas)],
   ];

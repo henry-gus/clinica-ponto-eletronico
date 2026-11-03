@@ -206,7 +206,7 @@ def test_resumo_de_todos(client, ana, cab_admin, hoje_em_novembro):
     novo_usuario(client, cab_admin, "Bia Lima", "111.444.777-35")  # sem marcações
     resumo = {r["nome"]: r for r in client.get(f"/admin/resumo?{SEMANA}", headers=cab_admin).json()}
 
-    assert list(resumo) == ["Ana Souza", "Bia Lima", "Carla Admin"]  # inclui o administrador
+    assert list(resumo) == ["Ana Souza", "Bia Lima"]  # administradores não entram no controle de horas
     ana_resumo = resumo["Ana Souza"]
     assert (ana_resumo["total_horas"], ana_resumo["saldo"], ana_resumo["faltas"], ana_resumo["ausencias"]) == ("18:00", "-14:00", 2, 3)
     assert ana_resumo["dias_incompletos"] == 1
@@ -236,7 +236,6 @@ def test_zip_com_um_pdf_por_pessoa(client, db, ana, admin, cab_admin, certificad
     assert arquivo.namelist() == [
         f"{ana['id']:03d}-extrato-ana-souza-20261001-20261031.pdf",
         f"{bia['id']:03d}-extrato-bia-lima-20261001-20261031.pdf",
-        f"{admin['id']:03d}-extrato-carla-admin-20261001-20261031.pdf",
     ]
     textos = [texto_pdf(arquivo.read(nome)) for nome in arquivo.namelist()]
     assert "Ana Souza" in textos[0] and "Bia Lima" not in textos[0]
@@ -248,3 +247,53 @@ def test_paginas_estaticas(client):
     for caminho in ("/extratos", "/static/js/extrato-ui.js"):
         assert client.get(caminho).status_code == 200
     assert client.get("/painel").status_code == 404 and client.get("/meu-extrato").status_code == 404
+
+
+def test_fechamento_da_clinica_abona_todos_os_funcionarios(client, ana, cab_ana, cab_admin, hoje_em_novembro):
+    resposta = client.post("/admin/fechamentos", json={
+        "inicio": "2026-10-05", "fim": "2026-10-06", "motivo": "Feriado municipal"
+    }, headers=cab_admin)
+    assert resposta.status_code == 201 and len(resposta.json()) == 2
+    dados = client.get(f"/extratos/meu?{SEMANA}", headers=cab_ana).json()
+    dias = {d["data"]: d for d in dados["dias"]}
+    assert dias["2026-10-05"]["situacao"] == "clinica_fechada"
+    assert dias["2026-10-05"]["situacao_texto"] == "Clínica fechada"
+    assert dias["2026-10-05"]["observacao"] == "Feriado municipal"
+    assert (dados["horas_esperadas"], dados["faltas"]) == ("40:00", 3)
+    assert client.delete(f"/admin/fechamentos/{resposta.json()[0]['id']}", headers=cab_admin).status_code == 204
+
+
+def test_marcacao_manual_admin_completa_entrada_e_saida(client, usuario, cab_admin):
+    entrada = client.post("/admin/marcacoes", json={
+        "usuario_id": usuario["id"], "momento": "2026-10-05T08:00:00", "tipo": "entrada"
+    }, headers=cab_admin)
+    saida = client.post("/admin/marcacoes", json={
+        "usuario_id": usuario["id"], "momento": "2026-10-05T17:00:00", "tipo": "saida"
+    }, headers=cab_admin)
+    assert entrada.status_code == 201, entrada.text
+    assert saida.status_code == 201, saida.text
+    assert entrada.json()["tipo"] == "entrada" and saida.json()["tipo"] == "saida"
+
+
+def test_marcacao_manual_valida_sequencia_e_nao_permite_admin(client, usuario, admin, cab_admin):
+    errada = client.post("/admin/marcacoes", json={
+        "usuario_id": usuario["id"], "momento": "2026-10-05T08:00:00", "tipo": "saida"
+    }, headers=cab_admin)
+    admin_mark = client.post("/admin/marcacoes", json={
+        "usuario_id": admin["id"], "momento": "2026-10-05T08:00:00", "tipo": "entrada"
+    }, headers=cab_admin)
+    assert errada.status_code == 409
+    assert admin_mark.status_code == 404
+
+
+def test_saldo_inicial_e_zero_por_padrao(client, cab_admin):
+    pessoa = novo_usuario(client, cab_admin, "Bia Lima", "111.444.777-35")
+    assert pessoa["saldo_inicial"] == 0
+
+
+def test_saldo_inicial_compõe_saldo_do_extrato(client, cab_admin, hoje_em_novembro):
+    pessoa = novo_usuario(client, cab_admin, "Bia Lima", "111.444.777-35", saldo_inicial=2.5)
+    cab = entrar(client, pessoa, "4321")
+    dados = client.get(f"/extratos/meu?{SEMANA}", headers=cab).json()
+    assert dados["saldo_inicial"] == "02:30"
+    assert dados["saldo"] == "-53:30"

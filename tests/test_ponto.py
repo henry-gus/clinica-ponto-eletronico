@@ -71,6 +71,6 @@ def test_saida_esquecida_nao_contamina_o_dia_seguinte(db, usuario):
     assert (tipo1, tipo2) == ("entrada", "entrada")
 
 
-def test_administrador_tambem_pode_bater_ponto(client, admin):
+def test_administrador_nao_registra_ponto(client, admin):
     resposta = client.post(f"/ponto/{admin['id']}?token={_token(client)}", json={"pin": "9999"})
-    assert resposta.status_code == 200 and resposta.json()["tipo"] == "entrada"
+    assert resposta.status_code == 403

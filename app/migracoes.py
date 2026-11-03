@@ -11,6 +11,11 @@ COLUNAS_NOVAS = {
         "papel": "VARCHAR NOT NULL DEFAULT 'funcionario'",
         "dias_trabalho": "VARCHAR NOT NULL DEFAULT '0,1,2,3,4'",
         "data_inicio": "DATE",
+        "saldo_inicial": "FLOAT NOT NULL DEFAULT 0",
+    },
+    "marcacoes": {
+        "manual": "INTEGER NOT NULL DEFAULT 0",
+        "registrado_por": "INTEGER REFERENCES usuarios(id)",
     },
 }
 
