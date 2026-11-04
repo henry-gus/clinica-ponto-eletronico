@@ -34,7 +34,7 @@ a cada requisição: promover ou rebaixar vale na hora.
 
 - **QR Code dinâmico (JWT com validade curta).** Dificulta que alguém registre o ponto de fora da
   clínica com a foto de um QR antigo. Não elimina: uma foto enviada dentro da janela de validade
-  (120s por padrão) ainda funciona. Por isso o funcionário também precisa do PIN.
+  (60s por padrão) ainda funciona. Por isso o funcionário também precisa do PIN.
 - **Marcações imutáveis com NSR.** A tabela `marcacoes` só recebe inserções. Entrada ou saída é
   deduzida pela ordem das marcações no dia (fuso da clínica); uma saída esquecida não afeta o dia seguinte.
 - **Limite de tentativas de PIN.** Depois de 5 erros (padrão), a pessoa fica bloqueada por 15 min,
